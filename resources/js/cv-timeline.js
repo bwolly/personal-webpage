@@ -28,7 +28,6 @@
         { cardIdx: 1, label: 'MA Philosophy', startYear: ym(2019,9), endYear: ym(2020,8), color: '#2563eb', lane: 0 },
         { cardIdx: 4, label: 'BSc Physics',   startYear: ym(2021,9), endYear: ym(2023,8), color: '#0891b2', lane: 0 },
         { cardIdx: 5, label: 'MSc Physics',   startYear: ym(2023,9), endYear: ym(2025,8), color: '#1e40af', lane: 0 },
-        { cardIdx: 7, label: 'Erasmus+',      startYear: ym(2024,9), endYear: ym(2025,2), color: '#0e7490', lane: 1 },
     ];
 
     // Category colours — shared by bars and section labels
@@ -48,10 +47,10 @@
         H_TIMELINE_Y = canvas.height * 0.44;
         H_BAR_GAP    = 36;   // gap between timeline and nearest bar edge
 
-        V_TOP_M      = canvas.height * 0.06;
-        V_AVAIL_H    = canvas.height * 0.88;
+        V_TOP_M      = isVertical() ? canvas.height * 0.10 : canvas.height * 0.06;
+        V_AVAIL_H    = canvas.height * 0.80;
         V_TIMELINE_X = canvas.width  * 0.50;
-        V_BAR_GAP    = 36;
+        V_BAR_GAP    = 65;
     }
 
     function xYear(year) { return H_LEFT_M + (year - START_YEAR) / N_YEARS * H_AVAIL_W; }
@@ -95,7 +94,7 @@
             const eduCardTopY     = H_TIMELINE_Y + H_BAR_GAP + BAR_H + CARD_GAP;
 
             // Space reserved at top of canvas for the sticky "Curriculum vitae" title
-            const TITLE_H = 56;
+            const TITLE_H = 72;
 
             function layoutRow(bars, isWork, lane) {
                 const eduCardY = eduCardTopY + (lane || 0) * (BAR_H + 4);
@@ -108,23 +107,22 @@
                     return Math.max(TITLE_H, workCardBottomY - h);
                 }
 
-                // Lay visited cards out left-to-right, pushing past any that are too close,
-                // but always clamped so no card is cut off at the right edge.
-                let nextLeft = M;
-                visited.forEach(b => {
+                // Lay visited cards right-to-left, each anchored at its bar end.
+                // Process from the chronologically last bar to the first so earlier cards
+                // are always left of later ones without any overlap.
+                let nextRight = canvas.width - M;
+                [...visited].reverse().forEach(b => {
                     const card = document.getElementById(`cv-card-${b.cardIdx}`);
                     if (!card) return;
-                    const cardW = card.offsetWidth || CW;
-                    const left  = Math.min(
-                        Math.max(xYear(b.startYear), nextLeft),
-                        canvas.width - cardW - M
-                    );
+                    const cardW  = card.offsetWidth || CW;
+                    const right  = Math.min(xYear(b.endYear), nextRight);
+                    const left   = Math.max(M, right - cardW);
                     card.style.top       = isWork ? `${workTop(card)}px` : `${eduCardY}px`;
                     card.style.left      = `${left}px`;
                     card.style.right     = 'auto';
                     card.style.width     = `${CW}px`;  // CSS overrides with auto for visited
                     card.style.transform = '';
-                    nextLeft = left + cardW + 4;
+                    nextRight = left - 4;
                 });
 
                 // Active / future: anchor left edge to bar start
@@ -195,7 +193,7 @@
             if (year === END_YEAR) continue;   // replaced by dots below
             const xx      = xYear(year);
             const reached = progress >= (year - START_YEAR) / N_YEARS - 0.001;
-            const major   = (year % 2 === 1);
+            const major   = (year % 2 === 0);
             const tickLen = major ? 7 : 4;
             ctx.beginPath(); ctx.moveTo(xx, TY - tickLen); ctx.lineTo(xx, TY + tickLen);
             ctx.strokeStyle = reached ? 'rgba(201,168,76)' : 'rgba(201,168,76,0.18)';
@@ -302,7 +300,7 @@
             if (year === END_YEAR) continue;   // replaced by dots below
             const yy      = yYear(year);
             const reached = progress >= (year - START_YEAR) / N_YEARS - 0.001;
-            const major   = (year % 2 === 1);
+            const major   = (year % 2 === 0);
             const tickLen = major ? 6 : 3;
             ctx.beginPath(); ctx.moveTo(TX - tickLen, yy); ctx.lineTo(TX + tickLen, yy);
             ctx.strokeStyle = reached ? 'rgba(201,168,76,0.65)' : 'rgba(201,168,76,0.18)';
@@ -334,7 +332,7 @@
         ctx.fillStyle = WORK_COLOR;
         ctx.fillText('WORK', TX + V_BAR_GAP + BAR_H / 2, V_TOP_M * 0.55);
         ctx.fillStyle = EDU_COLOR;
-        ctx.fillText('EDU', TX - V_BAR_GAP - BAR_H / 2, V_TOP_M * 0.55);
+        ctx.fillText('EDUCATION', TX - V_BAR_GAP - BAR_H / 2, V_TOP_M * 0.55);
     }
 
     // ── Vertical: individual bar ──────────────────────────────────────────

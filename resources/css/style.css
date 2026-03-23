@@ -199,7 +199,7 @@ header {
 #about-me-bio {
     max-width: 75%;
     margin: 0 auto;
-    padding: 0 1rem 3rem;
+    padding: 0 1rem 22vh;
     text-align: justify;
     position: relative;
     z-index: 1;
@@ -226,8 +226,8 @@ header {
 }
 
 #cv-title {
-    font-family: NeutraDisplay;
-    font-weight: bolder;
+    font-family: NeutraText;
+    font-size: 2rem;
     color: #c9a84c;
     text-align: center;
     margin: 0;
@@ -238,6 +238,19 @@ header {
     right: 0;
     z-index: 2;
     pointer-events: none;
+
+    & .cv-title-short { display: none; }
+}
+
+@media (max-width: 933px) {
+    #cv-title {
+        text-align: left;
+        left: 0.75rem;
+        right: auto;
+
+        & .cv-title-long { display: none; }
+        & .cv-title-short { display: inline; }
+    }
 }
 
 #cv-scroll-area {
@@ -540,6 +553,21 @@ a {
 
     #cv-sticky {
         width: 100%;
+    }
+
+    #cv-title {
+        text-align: left;        /* Align text to the left */
+        left: 1rem;              /* Move away from the left edge */
+        right: auto;             /* Disable the right:0 used for centering */
+        top: 0.5rem;             /* Adjust the top spacing */
+        font-size: 0;            /* Hide the original "Curriculum vitae" text */
+    }
+
+    #cv-title::before {
+        content: "CV";           /* Insert the shorter title */
+        font-size: 1.2rem;       /* Restore the font size for the new text */
+        visibility: visible;     /* Ensure the pseudo-element is seen */
+        display: block;
     }
 
     #hero-name {
