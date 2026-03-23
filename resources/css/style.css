@@ -81,6 +81,7 @@ html {
     font-size: 20px;
     background-color: #0f1117;
     color: #e8e6e1;
+    scroll-behavior: smooth;
 }
 
 header {
@@ -202,6 +203,7 @@ header {
     text-align: justify;
     position: relative;
     z-index: 1;
+    scroll-margin-top: 10rem;
 
     & p {
         line-height: 1.8;
@@ -491,6 +493,7 @@ a {
 
     #about-me-bio {
         max-width: 90%;
+        scroll-margin-top: 100px;
     }
 
     #cv-sticky {
