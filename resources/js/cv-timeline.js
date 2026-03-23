@@ -6,36 +6,46 @@
     const stickyEl   = document.getElementById('cv-sticky');
 
     const START_YEAR = 2015;
-    const END_YEAR   = 2027;
+    const END_YEAR   = 2028;
     const N_YEARS    = END_YEAR - START_YEAR;
     const BAR_H      = 30;
     const CARD_GAP   = 10;
 
+    // Convert year + 1-indexed month to a fractional year
+    function ym(year, month) { return year + (month - 1) / 12; }
+
     // Work milestones — above the timeline (horizontal) / right (vertical)
     const WORK_BARS = [
-        { cardIdx: 2, label: 'Research Asst.',  startYear: 2020, endYear: 2021, color: '#b45309' },
-        { cardIdx: 3, label: 'Science Teacher', startYear: 2021, endYear: 2023, color: '#dc2626' },
-        { cardIdx: 6, label: 'PhD Researcher',  startYear: 2026, endYear: 2027, color: '#d97706' },
+        { cardIdx: 2, label: 'Research Asst.',  startYear: ym(2020,9), endYear: ym(2021,3), color: '#b45309' },
+        { cardIdx: 3, label: 'Science Teacher', startYear: ym(2021,4), endYear: ym(2023,8), color: '#dc2626' },
+        { cardIdx: 6, label: 'PhD Researcher',  startYear: ym(2026,1), endYear: END_YEAR,   color: '#d97706' },
     ];
 
     // Education milestones — below the timeline (horizontal) / left (vertical)
+    // lane 0 = closer to timeline, lane 1 = further out (for overlapping periods)
     const EDU_BARS = [
-        { cardIdx: 0, label: 'BA Philosophy', startYear: 2015, endYear: 2019, color: '#7c3aed' },
-        { cardIdx: 1, label: 'MA Philosophy', startYear: 2019, endYear: 2020, color: '#2563eb' },
-        { cardIdx: 4, label: 'BSc Physics',   startYear: 2021, endYear: 2023, color: '#0891b2' },
-        { cardIdx: 5, label: 'MSc Physics',   startYear: 2023, endYear: 2025, color: '#1e40af' },
+        { cardIdx: 0, label: 'BA Philosophy', startYear: ym(2015,9), endYear: ym(2019,8), color: '#7c3aed', lane: 0 },
+        { cardIdx: 1, label: 'MA Philosophy', startYear: ym(2019,9), endYear: ym(2020,8), color: '#2563eb', lane: 0 },
+        { cardIdx: 4, label: 'BSc Physics',   startYear: ym(2021,9), endYear: ym(2023,8), color: '#0891b2', lane: 0 },
+        { cardIdx: 5, label: 'MSc Physics',   startYear: ym(2023,9), endYear: ym(2025,8), color: '#1e40af', lane: 0 },
+        { cardIdx: 7, label: 'Erasmus+',      startYear: ym(2024,9), endYear: ym(2025,2), color: '#0e7490', lane: 1 },
     ];
+
+    // Category colours — shared by bars and section labels
+    const WORK_COLOR = '#dc8c3c';
+    const EDU_COLOR  = '#78a0f0';
 
     // Layout variables — recomputed on resize
     let H_LEFT_M, H_AVAIL_W, H_TIMELINE_Y, H_BAR_GAP;
     let V_TOP_M,  V_AVAIL_H,  V_TIMELINE_X, V_BAR_GAP;
+    let currentProgress = 0;
 
     function isVertical() { return canvas.width < 700; }
 
     function recomputeLayout() {
         H_LEFT_M     = canvas.width  * 0.10;
         H_AVAIL_W    = canvas.width  * 0.80;
-        H_TIMELINE_Y = canvas.height * 0.50;
+        H_TIMELINE_Y = canvas.height * 0.44;
         H_BAR_GAP    = 36;   // gap between timeline and nearest bar edge
 
         V_TOP_M      = canvas.height * 0.06;
@@ -74,7 +84,7 @@
         return 185;
     }
 
-    function positionCards() {
+    function positionCards(progress) {
         const CW   = cardWidth();
         const M    = 6;
         const vert = isVertical();
@@ -84,30 +94,60 @@
             const workCardBottomY = H_TIMELINE_Y - H_BAR_GAP - BAR_H - CARD_GAP;
             const eduCardTopY     = H_TIMELINE_Y + H_BAR_GAP + BAR_H + CARD_GAP;
 
-            WORK_BARS.forEach(b => {
-                const card = document.getElementById(`cv-card-${b.cardIdx}`);
-                if (!card) return;
-                const midX = (xYear(b.startYear) + xYear(b.endYear)) / 2;
-                card.style.top       = `${workCardBottomY}px`;
-                card.style.width     = `${CW}px`;
-                card.style.left      = `${Math.max(M, Math.min(midX - CW / 2, canvas.width - CW - M))}px`;
-                card.style.right     = 'auto';
-                card.style.transform = 'translateY(-100%)';  // anchor bottom edge to workCardBottomY
-            });
-            EDU_BARS.forEach(b => {
-                const card = document.getElementById(`cv-card-${b.cardIdx}`);
-                if (!card) return;
-                const midX = (xYear(b.startYear) + xYear(b.endYear)) / 2;
-                card.style.top       = `${eduCardTopY}px`;
-                card.style.width     = `${CW}px`;
-                card.style.left      = `${Math.max(M, Math.min(midX - CW / 2, canvas.width - CW - M))}px`;
-                card.style.right     = 'auto';
-                card.style.transform = '';
+            // Space reserved at top of canvas for the sticky "Curriculum vitae" title
+            const TITLE_H = 56;
+
+            function layoutRow(bars, isWork, lane) {
+                const eduCardY = eduCardTopY + (lane || 0) * (BAR_H + 4);
+                const visited  = bars.filter(b => progress > (b.endYear   - START_YEAR) / N_YEARS);
+                const nonVisit = bars.filter(b => progress <= (b.endYear  - START_YEAR) / N_YEARS);
+
+                // Work cards: bottom-anchor to workCardBottomY, clamped so top never goes above title
+                function workTop(card) {
+                    const h = card.offsetHeight || 120;
+                    return Math.max(TITLE_H, workCardBottomY - h);
+                }
+
+                // Lay visited cards out left-to-right, pushing past any that are too close,
+                // but always clamped so no card is cut off at the right edge.
+                let nextLeft = M;
+                visited.forEach(b => {
+                    const card = document.getElementById(`cv-card-${b.cardIdx}`);
+                    if (!card) return;
+                    const cardW = card.offsetWidth || CW;
+                    const left  = Math.min(
+                        Math.max(xYear(b.startYear), nextLeft),
+                        canvas.width - cardW - M
+                    );
+                    card.style.top       = isWork ? `${workTop(card)}px` : `${eduCardY}px`;
+                    card.style.left      = `${left}px`;
+                    card.style.right     = 'auto';
+                    card.style.width     = `${CW}px`;  // CSS overrides with auto for visited
+                    card.style.transform = '';
+                    nextLeft = left + cardW + 4;
+                });
+
+                // Active / future: anchor left edge to bar start
+                nonVisit.forEach(b => {
+                    const card = document.getElementById(`cv-card-${b.cardIdx}`);
+                    if (!card) return;
+                    card.style.top       = isWork ? `${workTop(card)}px` : `${eduCardY}px`;
+                    card.style.left      = `${Math.max(M, Math.min(xYear(b.startYear), canvas.width - CW - M))}px`;
+                    card.style.right     = 'auto';
+                    card.style.width     = `${CW}px`;
+                    card.style.transform = '';
+                });
+            }
+
+            layoutRow(WORK_BARS, true, 0);
+            // Group edu bars by lane so visited cards in each lane are laid out independently
+            const eduLanes = [...new Set(EDU_BARS.map(b => b.lane || 0))].sort();
+            eduLanes.forEach(lane => {
+                layoutRow(EDU_BARS.filter(b => (b.lane || 0) === lane), false, lane);
             });
         } else {
             // Vertical: work cards right of bars, edu cards left of bars
             const workCardLeftX = Math.min(V_TIMELINE_X + V_BAR_GAP + BAR_H + CARD_GAP, canvas.width - CW - M);
-            const eduCardRightX = V_TIMELINE_X - V_BAR_GAP - BAR_H - CARD_GAP;
 
             WORK_BARS.forEach(b => {
                 const card = document.getElementById(`cv-card-${b.cardIdx}`);
@@ -122,8 +162,9 @@
             EDU_BARS.forEach(b => {
                 const card = document.getElementById(`cv-card-${b.cardIdx}`);
                 if (!card) return;
-                const midY = (yYear(b.startYear) + yYear(b.endYear)) / 2;
-                const leftX = Math.max(M, eduCardRightX - CW);
+                const midY          = (yYear(b.startYear) + yYear(b.endYear)) / 2;
+                const laneRightX    = V_TIMELINE_X - V_BAR_GAP - BAR_H - (b.lane || 0) * (BAR_H + 4) - CARD_GAP;
+                const leftX         = Math.max(M, laneRightX - CW);
                 card.style.top       = `${midY}px`;
                 card.style.width     = `${CW}px`;
                 card.style.left      = `${leftX}px`;
@@ -145,24 +186,37 @@
 
         if (progress > 0) {
             ctx.beginPath(); ctx.moveTo(x0, TY); ctx.lineTo(shipX, TY);
-            ctx.strokeStyle = 'rgba(201,168,76,0.60)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.strokeStyle = 'rgba(201,168,76)'; ctx.lineWidth = 2; ctx.stroke();
         }
 
         const fs = Math.max(8, Math.round(canvas.width * 0.011));
         ctx.font = `${fs}px sans-serif`;
         for (let year = START_YEAR; year <= END_YEAR; year++) {
+            if (year === END_YEAR) continue;   // replaced by dots below
             const xx      = xYear(year);
             const reached = progress >= (year - START_YEAR) / N_YEARS - 0.001;
             const major   = (year % 2 === 1);
             const tickLen = major ? 7 : 4;
             ctx.beginPath(); ctx.moveTo(xx, TY - tickLen); ctx.lineTo(xx, TY + tickLen);
-            ctx.strokeStyle = reached ? 'rgba(201,168,76,0.65)' : 'rgba(201,168,76,0.18)';
+            ctx.strokeStyle = reached ? 'rgba(201,168,76)' : 'rgba(201,168,76,0.18)';
             ctx.lineWidth = 1; ctx.stroke();
             if (major) {
-                ctx.fillStyle = reached ? 'rgba(201,168,76,0.75)' : 'rgba(201,168,76,0.22)';
+                ctx.fillStyle = reached ? 'rgba(201,168,76)' : 'rgba(201,168,76,0.22)';
                 ctx.textAlign = 'center';
-                // Year labels ABOVE the timeline — sit in the gap between bars and timeline
                 ctx.fillText(String(year), xx, TY - tickLen - 3);
+            }
+        }
+
+        // Three dots at the end instead of the 2027 tick
+        {
+            const dotX     = xYear(END_YEAR);
+            const reached  = progress >= 1 - 0.001;
+            const dotAlpha = reached ? 0.75 : 0.22;
+            ctx.fillStyle  = `rgba(201,168,76,${dotAlpha})`;
+            for (let i = -1; i <= 1; i++) {
+                ctx.beginPath();
+                ctx.arc(dotX + i * 5, TY, 1.8, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
@@ -174,7 +228,7 @@
         ctx.translate(H_LEFT_M * 0.35, TY - H_BAR_GAP - BAR_H / 2);
         ctx.rotate(-Math.PI / 2);
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(220,140,60,0.38)';
+        ctx.fillStyle = WORK_COLOR;
         ctx.fillText('WORK', 0, lfs * 0.38);
         ctx.restore();
 
@@ -182,8 +236,8 @@
         ctx.translate(H_LEFT_M * 0.35, TY + H_BAR_GAP + BAR_H / 2);
         ctx.rotate(-Math.PI / 2);
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(120,160,240,0.38)';
-        ctx.fillText('EDUCATION', 0, lfs * 0.38);
+        ctx.fillStyle = EDU_COLOR;
+        ctx.fillText('EDUCATION', -15, lfs * 0.38);
         ctx.restore();
     }
 
@@ -194,31 +248,29 @@
         const x0   = xYear(b.startYear);
         const x1   = xYear(b.endYear);
         const barW = x1 - x0;
-        const barY = above ? H_TIMELINE_Y - H_BAR_GAP - BAR_H : H_TIMELINE_Y + H_BAR_GAP;
+        const barY = above ? H_TIMELINE_Y - H_BAR_GAP - BAR_H : H_TIMELINE_Y + H_BAR_GAP + (b.lane || 0) * (BAR_H + 4);
 
-        ctx.strokeStyle = hexRgba(b.color, 0.18);
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x0, barY, barW, BAR_H);
+        const barColor = above ? WORK_COLOR : EDU_COLOR;
+
+        // Unvisited portion: 12% opacity background
+        ctx.fillStyle = hexRgba(barColor, 0.12);
+        ctx.fillRect(x0, barY, barW, BAR_H);
 
         const fillFrac = Math.max(0, Math.min(1, (progress - startFrac) / (endFrac - startFrac)));
         const active   = progress >= startFrac && progress <= endFrac;
-        const visited  = progress > endFrac;
         const fillW    = fillFrac * barW;
 
         if (fillW > 0) {
-            const alpha = visited ? 0.32 : 0.52;
-            const grad  = ctx.createLinearGradient(x0, 0, x0 + fillW, 0);
-            grad.addColorStop(0, hexRgba(b.color, alpha));
-            grad.addColorStop(1, hexRgba(adjustColor(b.color, 1.35), alpha));
-            ctx.fillStyle = grad;
+            // Filled portion: 100% opaque flat fill
+            ctx.fillStyle = hexRgba(barColor, 1.0);
             ctx.fillRect(x0, barY, fillW, BAR_H);
 
             if (active) {
                 const glowX  = x0 + fillW;
                 const radius = BAR_H * 1.1;
                 const glow   = ctx.createRadialGradient(glowX, barY + BAR_H / 2, 0, glowX, barY + BAR_H / 2, radius);
-                glow.addColorStop(0, hexRgba(b.color, 0.70));
-                glow.addColorStop(1, hexRgba(b.color, 0));
+                glow.addColorStop(0, hexRgba(barColor, 0.70));
+                glow.addColorStop(1, hexRgba(barColor, 0));
                 ctx.save();
                 ctx.beginPath(); ctx.rect(x0, barY, barW, BAR_H); ctx.clip();
                 ctx.fillStyle = glow;
@@ -227,16 +279,6 @@
             }
         }
 
-        if (fillFrac > 0.05) {
-            const lfs  = Math.max(8, Math.round(canvas.width * 0.011));
-            const minW = lfs * b.label.length * 0.58 + 10;
-            if (barW > minW) {
-                ctx.font      = `${lfs}px sans-serif`;
-                ctx.fillStyle = hexRgba('#e8e6e1', visited ? 0.50 : 0.88);
-                ctx.textAlign = 'center';
-                ctx.fillText(b.label, x0 + barW / 2, barY + BAR_H / 2 + lfs * 0.38);
-            }
-        }
     }
 
     // ── Vertical: timeline axis ───────────────────────────────────────────
@@ -257,6 +299,7 @@
         const fs = Math.max(8, Math.round(canvas.width * 0.030));
         ctx.font = `${fs}px sans-serif`;
         for (let year = START_YEAR; year <= END_YEAR; year++) {
+            if (year === END_YEAR) continue;   // replaced by dots below
             const yy      = yYear(year);
             const reached = progress >= (year - START_YEAR) / N_YEARS - 0.001;
             const major   = (year % 2 === 1);
@@ -266,9 +309,21 @@
             ctx.lineWidth = 1; ctx.stroke();
             if (major) {
                 ctx.fillStyle = reached ? 'rgba(201,168,76,0.75)' : 'rgba(201,168,76,0.22)';
-                // Year labels to the LEFT of the timeline, in the gap between edu bars and timeline
                 ctx.textAlign = 'right';
                 ctx.fillText(String(year), TX - tickLen - 3, yy + fs * 0.38);
+            }
+        }
+
+        // Three dots at the end instead of the 2027 tick
+        {
+            const dotY     = yYear(END_YEAR);
+            const reached  = progress >= 1 - 0.001;
+            const dotAlpha = reached ? 0.75 : 0.22;
+            ctx.fillStyle  = `rgba(201,168,76,${dotAlpha})`;
+            for (let i = -1; i <= 1; i++) {
+                ctx.beginPath();
+                ctx.arc(TX, dotY + i * 5, 1.8, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
@@ -276,9 +331,9 @@
         const lfs = Math.max(8, Math.round(canvas.width * 0.034));
         ctx.font = `bold ${lfs}px sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(220,140,60,0.38)';
+        ctx.fillStyle = WORK_COLOR;
         ctx.fillText('WORK', TX + V_BAR_GAP + BAR_H / 2, V_TOP_M * 0.55);
-        ctx.fillStyle = 'rgba(120,160,240,0.38)';
+        ctx.fillStyle = EDU_COLOR;
         ctx.fillText('EDU', TX - V_BAR_GAP - BAR_H / 2, V_TOP_M * 0.55);
     }
 
@@ -289,31 +344,29 @@
         const y0     = yYear(b.startYear);
         const y1     = yYear(b.endYear);
         const barLen = y1 - y0;
-        const barX   = right ? V_TIMELINE_X + V_BAR_GAP : V_TIMELINE_X - V_BAR_GAP - BAR_H;
+        const barX   = right ? V_TIMELINE_X + V_BAR_GAP : V_TIMELINE_X - V_BAR_GAP - BAR_H - (b.lane || 0) * (BAR_H + 4);
 
-        ctx.strokeStyle = hexRgba(b.color, 0.18);
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, y0, BAR_H, barLen);
+        const barColor = right ? WORK_COLOR : EDU_COLOR;
+
+        // Unvisited portion: 12% opacity background
+        ctx.fillStyle = hexRgba(barColor, 0.12);
+        ctx.fillRect(barX, y0, BAR_H, barLen);
 
         const fillFrac = Math.max(0, Math.min(1, (progress - startFrac) / (endFrac - startFrac)));
         const active   = progress >= startFrac && progress <= endFrac;
-        const visited  = progress > endFrac;
         const fillLen  = fillFrac * barLen;
 
         if (fillLen > 0) {
-            const alpha = visited ? 0.32 : 0.52;
-            const grad  = ctx.createLinearGradient(0, y0, 0, y0 + fillLen);
-            grad.addColorStop(0, hexRgba(b.color, alpha));
-            grad.addColorStop(1, hexRgba(adjustColor(b.color, 1.35), alpha));
-            ctx.fillStyle = grad;
+            // Filled portion: 100% opaque flat fill
+            ctx.fillStyle = hexRgba(barColor, 1.0);
             ctx.fillRect(barX, y0, BAR_H, fillLen);
 
             if (active) {
                 const glowY  = y0 + fillLen;
                 const radius = BAR_H * 1.1;
                 const glow   = ctx.createRadialGradient(barX + BAR_H / 2, glowY, 0, barX + BAR_H / 2, glowY, radius);
-                glow.addColorStop(0, hexRgba(b.color, 0.70));
-                glow.addColorStop(1, hexRgba(b.color, 0));
+                glow.addColorStop(0, hexRgba(barColor, 0.70));
+                glow.addColorStop(1, hexRgba(barColor, 0));
                 ctx.save();
                 ctx.beginPath(); ctx.rect(barX, y0, BAR_H, barLen); ctx.clip();
                 ctx.fillStyle = glow;
@@ -392,19 +445,22 @@
             if (!card) return;
             const startFrac = (b.startYear - START_YEAR) / N_YEARS;
             const endFrac   = (b.endYear   - START_YEAR) / N_YEARS;
-            // Horizontal: stay visible once the ship has entered the bar
-            // Vertical: show only while ship is within the bar (avoids overlap on small screens)
-            const active = vert
-                ? (progress >= startFrac && progress <= endFrac)
-                : (progress >= startFrac);
-            card.classList.toggle('active', active);
+            const inBar   = progress >= startFrac && progress <= endFrac;
+            // On desktop: visited cards stay visible but shrink to title only.
+            // On mobile vertical: hide after passing to avoid overlap.
+            const visited = !vert && progress > endFrac;
+            card.classList.toggle('active', inBar || visited);
+            card.classList.toggle('cv-card-visited', visited);
         });
+        // Re-position every frame so visited cards snap to bar-end anchors correctly
+        if (!vert) positionCards(progress);
     }
 
     // ── Main loop ─────────────────────────────────────────────────────────
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const progress = getProgress();
+        currentProgress = progress;
         const vert     = isVertical();
 
         if (vert) {
@@ -428,7 +484,7 @@
         canvas.width  = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
         recomputeLayout();
-        positionCards();
+        positionCards(currentProgress);
     }
 
     const ro = new ResizeObserver(resize);
