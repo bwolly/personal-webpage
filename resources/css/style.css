@@ -314,7 +314,7 @@ header {
     & .cv-period {
         display: block;
         font-size: 0.67rem;
-        color: rgba(232, 230, 225, 0.75);
+        color: rgba(232, 230, 225);
         margin-bottom: 0.45rem;
         font-style: italic;
     }
@@ -323,7 +323,7 @@ header {
         font-size: 0.7rem;
         line-height: 1.45;
         margin: 0;
-        color: rgba(232, 230, 225, 0.88);
+        color: rgba(232, 230, 225);
     }
 }
 
