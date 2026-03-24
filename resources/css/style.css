@@ -279,6 +279,7 @@ header {
 .cv-card {
     position: absolute;
     width: 200px;
+    box-sizing: border-box;
     background: rgba(10, 12, 20, 0.9);
     border: 1px solid rgba(201, 168, 76, 0.3);
     border-radius: 6px;
@@ -313,7 +314,7 @@ header {
     & .cv-period {
         display: block;
         font-size: 0.67rem;
-        color: rgba(232, 230, 225, 0.55);
+        color: rgba(232, 230, 225, 0.75);
         margin-bottom: 0.45rem;
         font-style: italic;
     }
@@ -340,7 +341,7 @@ a {
     scroll-margin-top: 3.5rem;
     padding: 2rem 12.5%;
 
-    & h1 {
+    & h2 {
         color: #c9a84c;
     }
 }
@@ -415,7 +416,7 @@ a {
     padding: 2rem 12.5%;
     text-align: justify;
 
-    & h1 {
+    & h2 {
         color: #c9a84c;
     }
 }
@@ -553,21 +554,12 @@ a {
 
     #cv-sticky {
         width: 100%;
+        top: 5.5rem;
+        height: calc(100vh - 5.5rem);
     }
 
-    #cv-title {
-        text-align: left;        /* Align text to the left */
-        left: 1rem;              /* Move away from the left edge */
-        right: auto;             /* Disable the right:0 used for centering */
-        top: 0.5rem;             /* Adjust the top spacing */
-        font-size: 0;            /* Hide the original "Curriculum vitae" text */
-    }
-
-    #cv-title::before {
-        content: "CV";           /* Insert the shorter title */
-        font-size: 1.2rem;       /* Restore the font size for the new text */
-        visibility: visible;     /* Ensure the pseudo-element is seen */
-        display: block;
+    #CV {
+        scroll-margin-top: 5.5rem;
     }
 
     #hero-name {
