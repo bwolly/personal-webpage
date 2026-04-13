@@ -34,6 +34,24 @@
     const WORK_COLOR = '#dc8c3c';
     const EDU_COLOR  = '#78a0f0';
 
+    // Minimum active duration: short bars keep their card visible longer
+    const MIN_ACTIVE_FRAC = 1.5 / N_YEARS;
+
+    function precomputeEffectiveEnds(bars) {
+        const sorted = [...bars].sort((a, b) => a.startYear - b.startYear);
+        sorted.forEach((b, i) => {
+            const startFrac = (b.startYear - START_YEAR) / N_YEARS;
+            const endFrac   = (b.endYear   - START_YEAR) / N_YEARS;
+            const minEnd    = startFrac + MIN_ACTIVE_FRAC;
+            const nextStart = i < sorted.length - 1
+                ? (sorted[i + 1].startYear - START_YEAR) / N_YEARS
+                : 1.0;
+            b._effEnd = Math.max(endFrac, Math.min(minEnd, nextStart));
+        });
+    }
+    precomputeEffectiveEnds(WORK_BARS);
+    precomputeEffectiveEnds(EDU_BARS);
+
     // Layout variables — recomputed on resize
     let H_LEFT_M, H_AVAIL_W, H_TIMELINE_Y, H_BAR_GAP;
     let V_TOP_M,  V_AVAIL_H,  V_TIMELINE_X, V_BAR_GAP;
@@ -98,8 +116,8 @@
 
             function layoutRow(bars, isWork, lane) {
                 const eduCardY = eduCardTopY + (lane || 0) * (BAR_H + 4);
-                const visited  = bars.filter(b => progress > (b.endYear   - START_YEAR) / N_YEARS);
-                const nonVisit = bars.filter(b => progress <= (b.endYear  - START_YEAR) / N_YEARS);
+                const visited  = bars.filter(b => progress > b._effEnd);
+                const nonVisit = bars.filter(b => progress <= b._effEnd);
 
                 // Work cards: bottom-anchor to workCardBottomY, clamped so top never goes above title
                 function workTop(card) {
@@ -442,11 +460,10 @@
             const card = document.getElementById(`cv-card-${b.cardIdx}`);
             if (!card) return;
             const startFrac = (b.startYear - START_YEAR) / N_YEARS;
-            const endFrac   = (b.endYear   - START_YEAR) / N_YEARS;
-            const inBar   = progress >= startFrac && progress <= endFrac;
+            const inBar   = progress >= startFrac && progress <= b._effEnd;
             // On desktop: visited cards stay visible but shrink to title only.
             // On mobile vertical: hide after passing to avoid overlap.
-            const visited = !vert && progress > endFrac;
+            const visited = !vert && progress > b._effEnd;
             card.classList.toggle('active', inBar || visited);
             card.classList.toggle('cv-card-visited', visited);
         });
